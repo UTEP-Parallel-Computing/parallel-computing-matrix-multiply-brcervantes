@@ -1,73 +1,125 @@
 #!/usr/bin/env python
 
 """
-Assignment 1 part 1, create and time serial algorithm to multiply matrices
+Assignment 1 part 1 and 2, create and time serial and parallel  algorithm to multiply matrices
 
 @author Briana Cervantes
 """
 
-
-import random
+import numpy as np
+import pymp as mp
+import argparse
+import matrixUtils as mu
 from timeit import default_timer as timer
 
-def main():
+
+def multiplyMatrix(matrixA, matrixB):
     """
-    Makes function calls to matrix operations and times performance
-    """
-
-    a = genMatrix()
-    b = genMatrix()
-
-    start = timer()
-    c     = multiplyMatrix(a,b)
-    end   = timer()
-    total = end - start
-
-    printSubMatrix(a)
-    printSubMatrix(b)
-    printSubMatrix(c)
-
-    print("Time (seconds): %.4f" %total)
-    return
-
-
-def multiplyMatrix(a, b):
-    """
-    Multiple two square matrices/2d array a and b.
-
-    :param list a: 2d array or matrix
-    :param list b: 2d array or matrix
-    :return: The result stored in 2d array
+    Multiple two square matrices/2d array a and b, serial algorithm.
     """
 
-    c = [[0 for col in range(len(b[0]))] for row in range(len(a))]
+    matrixC= [[0 for col in range(len(b[0]))] for row in range(len(a))]
 
     for i in range(len(a)):
         for j in range(len(b[0])):
             for k in range(len(b)):
-                c[i][j] += a[i][k] * b[k][j]
+                matrixC[i][j] += matrixA[i][k] * matrixB[k][j]
     return c
 
 
-def printSubMatrix(matrix, n=10):
-    """Prints a small portion of the given matrix nth rows and cols"""
-
-    for i in range(n):
-        for j in range(n):
-            print(matrix[i][j], end = " ")
-        print()
-    print()
-
-
-def genMatrix(size=1024, value=1):
+def parallelMultiply(matrixA, matrixB,num_threads):
     """
-    Generates a 2d square matrix of the specified size with the specified values
+    Parallel algrorithm to multiple square matrix a and b.
+    """
+    
+    size = len(matrixA)
+    matrixC = mp.shared.array((size, size), dtype=int)
+    
+    #number of theads to be specified through terminal
+    for i in range(0,size):
+        with mp.Parallel(num_threads) as p:
+            for j in p.range(0,len(matrixB[0])):
+                for k in range(0,size):
+                    matrixC[i][j] += matrixA[i][k] * matrixB[k][j]    
+    return matrixC
 
-    Taken from matrixUtils.py
+
+def serialTest():
+    """
+    Tests and times serial algorithm for matrix multiplication. Output sent to serialOut.txt
+    """
+    
+    #accumulator
+    total = 0
+
+    #get average time
+    for i in range(0,5):
+        start   = timer()
+        matrixC = MultiplyMatrix(matrixA, matrixB)
+        end     = timer()
+        total  += end - start
+        
+    #Prints average performance time
+    print('Total time: %.4f' %(total/10))
+    return matrixC
+    
+    
+def parallelTest(matrixA, matrixB, num_threads):
+    #accumulator
+    total = 0
+
+    #get average time
+    for i in range(0,5):
+        start   = timer()
+        matrixC = parallelMultiply(matrixA, matrixB, num_threads)
+        end     = timer()
+        total  += end - start 
+    #Prints average performance time
+    print('Total time: %.4f' %(total/5))
+    return matrixC
+
+
+def main():
+    """
+    Used for running as a script
     """
 
-    matrix = [[value for col in range(0,size)] for row in range(0,size)]
+    parser = argparse.ArgumentParser(description=
+        'Generate a 2d matrix and save it to a file.')
+    parser.add_argument('-e','--serial', action='store_true',
+        help='Tests the serial algorithm')
+    parser.add_argument('-p','--parallel', action='store_true',
+        help='Tests the parallel algorithm')
+    parser.add_argument('-n','--num_of_threads', default=1, type=int,
+        help='Number of threads used in the parallel algorithm')
+    parser.add_argument('-s', '--size', default=700, type=int,
+        help='Size of the 2d matrix to generate')
+    parser.add_argument('-v', '--value', default=1, type=int,
+        help='The value with which to fill the array with')
+    parser.add_argument('-f', '--filename', default='output.txt', type=str,
+        help='The name of the file to save the matrix in (optional)')
 
-    return matrix
+    args = parser.parse_args()
 
-main()
+    matrixA = mu.genMatrix2(args.size, args.value)
+    matrixB = mu.genMatrix2(args.size, args.value)
+
+    if args.parallel is not None:
+        matrixC = parallelTest(matrixA, matrixB, args.num_of_threads)
+    else:
+        matrixC = serialTest(matrixA, matrixB)
+    
+    if args.filename is not None:
+        print(f'Writing matrix to {args.filename}')
+        mu.writeToFile(matrixC, args.filename)
+
+        print(f'Testing file')
+        mu.printSubarray(mu.readFromFile(args.filename))
+    else:
+        mu.printSubarray(matrixC)
+    return
+
+        
+if __name__ == '__main__':
+    # execute only if run as a script
+    main()
